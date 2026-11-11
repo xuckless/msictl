@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=MSI Board Control
+GenericName=Motherboard lighting, fans and power
+Comment=RGB lighting, fan curves, sensors and CPU power for your MSI motherboard
+Exec=/usr/local/bin/msictl gui
+Icon=preferences-system
+Terminal=false
+Categories=System;Settings;HardwareSettings;
+Keywords=RGB;Mystic Light;fan;sensors;MSI;

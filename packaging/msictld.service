@@ -1,0 +1,25 @@
+[Unit]
+Description=msictl fan curves and CPU power limits for MSI boards
+Documentation=file:///usr/local/lib/msictl/README.md
+After=systemd-modules-load.service
+# Fans fall back to the BIOS curve if this service stops or crashes (nct6687 watchdog lease).
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/msictl daemon
+Restart=on-failure
+RestartSec=3
+RuntimeDirectory=msictl
+StateDirectory=msictl
+ConfigurationDirectory=msictl
+# Hardening that still allows writing /sys (fan PWM, RAPL) and reaching /dev/nvidia* (GPU temperature)
+NoNewPrivileges=yes
+ProtectSystem=full
+ReadWritePaths=/etc/msictl
+ProtectHome=yes
+PrivateTmp=yes
+LockPersonality=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

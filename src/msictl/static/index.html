@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>msictl</title>
+<style>
+:root {
+  --bg: #f5f5f4; --surface: #ffffff; --surface-2: #fafaf9; --ink: #18181b; --ink-2: #52525b;
+  --muted: #a1a1aa; --line: #e4e4e7; --line-2: #d4d4d8;
+  --accent: #2563eb; --accent-ink: #ffffff; --accent-soft: #dbeafe; --accent-line: #93c5fd;
+  --ok: #16a34a; --warn: #d97706; --err: #dc2626; --hot: #ea580c; --cool: #0891b2;
+  --radius: 12px; --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0c0e; --surface: #16161a; --surface-2: #1c1c21; --ink: #f4f4f5; --ink-2: #a1a1aa;
+    --muted: #71717a; --line: #27272a; --line-2: #3f3f46;
+    --accent: #60a5fa; --accent-ink: #0b1220; --accent-soft: #172554; --accent-line: #1e40af;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.25);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+.topbar { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 85%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.topbar-inner { max-width: 1200px; margin: 0 auto; padding: 12px 24px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; letter-spacing: -0.01em; }
+.brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--ink); color: var(--bg); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.device { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink-2); font-size: 12.5px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
+.dot.warn { background: var(--warn); }
+.grow { flex: 1; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font-size: 12.5px; color: var(--ink-2); padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-variant-numeric: tabular-nums; }
+.chip b { color: var(--ink); font-weight: 600; }
+
+.btn { border: 1px solid var(--line-2); background: var(--surface); padding: 7px 13px; border-radius: 8px; cursor: pointer; font-weight: 500; font-size: 13px; transition: background .12s, border-color .12s; }
+.btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--muted); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, black); border-color: transparent; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--ink-2); }
+.btn.small { padding: 4px 10px; font-size: 12.5px; }
+
+main { max-width: 1200px; margin: 0 auto; padding: 20px 24px 64px; }
+.nav { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; overflow-x: auto; }
+.nav button { border: 0; background: none; padding: 10px 14px; cursor: pointer; color: var(--ink-2); font-weight: 550; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
+.nav button:hover { color: var(--ink); }
+.nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; min-height: 34px; }
+.hint { color: var(--ink-2); font-size: 13px; }
+
+.seg { display: inline-flex; padding: 3px; background: var(--surface); border: 1px solid var(--line); border-radius: 9px; flex-wrap: wrap; }
+.seg button { border: 0; background: none; padding: 5px 14px; border-radius: 6px; cursor: pointer; color: var(--ink-2); font-weight: 550; font-size: 13px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg button:disabled { opacity: .4; cursor: default; }
+
+.panels { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0; }
+.panel-head { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.panel-title { font-weight: 650; }
+.panel-sub { color: var(--ink-2); font-size: 12.5px; }
+.panel-body { padding: 16px 18px; }
+.muted { color: var(--ink-2); }
+.banner { margin-bottom: 16px; padding: 10px 12px; border-radius: 8px; font-size: 13px; border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line));
+  background: color-mix(in srgb, var(--warn) 10%, var(--surface)); }
+.banner.err { border-color: color-mix(in srgb, var(--err) 40%, var(--line)); background: color-mix(in srgb, var(--err) 8%, var(--surface)); }
+.banner code, .note code { background: var(--surface-2); border: 1px solid var(--line); padding: 1px 5px; border-radius: 5px; font-size: 12px; }
+
+.field { margin-bottom: 16px; }
+.field:last-child { margin-bottom: 0; }
+.field-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: 13px; gap: 8px; }
+.field-top label, .lbl { color: var(--ink-2); }
+.val { font-variant-numeric: tabular-nums; font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--accent); margin: 0; }
+input[type=range]:disabled { opacity: .4; }
+input[type=number], select { padding: 6px 9px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface-2); }
+input[type=number] { width: 90px; }
+.switch { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.switch input { appearance: none; width: 36px; height: 20px; border-radius: 999px; background: var(--line-2); position: relative; cursor: pointer; transition: background .15s; flex: none; margin: 0; }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.switch input:checked { background: var(--accent); }
+.switch input:checked::after { transform: translateX(16px); }
+.label-sm { font-size: 11.5px; color: var(--ink-2); margin: 0 0 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.note { color: var(--ink-2); font-size: 12.5px; margin: 10px 0 0; }
+
+/* lighting */
+.effects { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px; }
+.opt { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 8px 6px; cursor: pointer; font-size: 12.5px; font-weight: 550; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opt:hover { border-color: var(--muted); background: var(--surface); }
+.opt.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.swatches { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.sw { width: 28px; height: 28px; border-radius: 50%; border: 0; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,.14); position: relative; flex: none; }
+.sw.on::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--accent); }
+.sw:disabled { opacity: .3; cursor: default; }
+.sw.rainbow { background: conic-gradient(#f43f5e, #f59e0b, #84cc16, #06b6d4, #6366f1, #d946ef, #f43f5e); }
+.colorpick { width: 28px; height: 28px; border: 0; padding: 0; border-radius: 50%; overflow: hidden; cursor: pointer; background: none; }
+.colorpick::-webkit-color-swatch-wrapper { padding: 0; } .colorpick::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.colorpick::-moz-color-swatch { border: 0; border-radius: 50%; }
+.leds { display: flex; gap: 5px; padding: 12px; border-radius: 10px; background: #0b0b0e; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; min-height: 40px; align-items: center; }
+.led { width: 14px; height: 14px; border-radius: 50%; background: var(--c, #333); box-shadow: 0 0 8px 1px var(--c, transparent); }
+.leds.off .led { --c: #222 !important; box-shadow: none; }
+.leds.breathe .led { animation: breathe var(--dur, 3s) ease-in-out infinite; }
+.leds.flash .led { animation: flash var(--dur, 1.2s) steps(1) infinite; }
+.leds.rainbow .led { animation: hue var(--dur, 4s) linear infinite; }
+.leds.rainbow.wave .led { animation-delay: calc(var(--i) * -0.18s); }
+@keyframes breathe { 0%,100% { opacity: .15; } 50% { opacity: 1; } }
+@keyframes flash { 0% { opacity: 1; } 50% { opacity: .08; } }
+@keyframes hue { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(360deg); } }
+.actions { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--line); flex-wrap: wrap; align-items: center; }
+
+/* fans */
+.fanstat { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; }
+.big { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.big small { font-size: 13px; color: var(--ink-2); font-weight: 500; margin-left: 3px; }
+.curve { width: 100%; height: auto; display: block; touch-action: none; user-select: none; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+.curve .grid line { stroke: var(--line); }
+.curve .axis text { fill: var(--muted); font-size: 11px; }
+.curve .line { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+.curve .area { fill: color-mix(in srgb, var(--accent) 12%, transparent); }
+.curve .pt { fill: var(--surface); stroke: var(--accent); stroke-width: 2.5; cursor: grab; }
+.curve .pt:hover, .curve .pt.drag { fill: var(--accent); }
+.curve .now { stroke: var(--hot); stroke-dasharray: 4 3; }
+.curve .nowdot { fill: var(--hot); }
+.curve .nowtxt { fill: var(--hot); font-size: 11px; font-weight: 600; }
+.curve.disabled { opacity: .45; pointer-events: none; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* sensors */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.tile { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }
+.tile .k { font-size: 12px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .v { font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.tile .v.warm { color: var(--warn); } .tile .v.hot { color: var(--err); }
+.bar { height: 4px; border-radius: 4px; background: var(--line); margin-top: 6px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .4s; }
+
+.center { min-height: 60vh; display: grid; place-items: center; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 28px; max-width: 560px; }
+.card pre { white-space: pre-wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 12.5px; color: var(--ink-2); }
+.foot { margin-top: 28px; color: var(--muted); font-size: 12px; text-align: center; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(12px); opacity: 0; pointer-events: none; max-width: calc(100vw - 32px);
+  background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 9px; font-size: 13px; font-weight: 500; transition: .2s; box-shadow: var(--shadow); z-index: 20; }
+.toast.show { opacity: 1; transform: translateX(-50%); }
+.toast.err { background: var(--err); color: #fff; }
+@media (max-width: 640px) {
+  .topbar-inner, main { padding-left: 16px; padding-right: 16px; }
+  .panels { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="brand-mark">m</span>msictl</div>
+    <div class="device"><span class="dot" id="dot"></span><span id="board">Connecting…</span></div>
+    <div class="grow"></div>
+    <div class="chips" id="chips"></div>
+  </div>
+</header>
+
+<main>
+  <nav class="nav" role="tablist">
+    <button role="tab" data-view="light" aria-selected="true">Lighting</button>
+    <button role="tab" data-view="fans" aria-selected="false">Fans</button>
+    <button role="tab" data-view="sensors" aria-selected="false">Sensors</button>
+    <button role="tab" data-view="power" aria-selected="false">Power</button>
+  </nav>
+
+  <!-- ============ LIGHTING ============ -->
+  <section data-panel="light">
+    <div class="banner err" id="light-err" hidden></div>
+    <div class="toolbar">
+      <label class="switch"><input type="checkbox" id="sync"> Same settings on every header</label>
+      <label class="switch"><input type="checkbox" id="live" checked> Preview changes live</label>
+      <div class="grow"></div>
+      <button class="btn" id="all-off">All off</button>
+      <button class="btn" id="light-revert" disabled>Discard</button>
+      <button class="btn primary" id="light-save" disabled title="Store in the board's memory so it survives power-off and works without this app">Save to board</button>
+    </div>
+    <div class="panels" id="zones"></div>
+    <p class="note">Effects run on the board itself: they keep going after you close this app. Changes are temporary until you press <b>Save to board</b>.
+      ARGB headers need the number of LEDs on the strip/fans for moving effects to look right (count the LEDs, or try 8 per fan).</p>
+  </section>
+
+  <!-- ============ FANS ============ -->
+  <section data-panel="fans" hidden>
+    <div class="banner" id="fan-banner" hidden></div>
+    <div class="toolbar">
+      <span class="hint" id="fan-hint"></span>
+      <div class="grow"></div>
+      <button class="btn" id="fan-revert" disabled>Discard</button>
+      <button class="btn primary" id="fan-apply" disabled>Apply</button>
+    </div>
+    <div class="panels" id="fanpanels"></div>
+    <p class="note" id="fan-note"></p>
+  </section>
+
+  <!-- ============ SENSORS ============ -->
+  <section data-panel="sensors" hidden>
+    <div id="sensor-groups"></div>
+  </section>
+
+  <!-- ============ POWER ============ -->
+  <section data-panel="power" hidden>
+    <div class="panels">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Power profile</span><span class="panel-sub">system-wide (tuned)</span></div>
+        <div class="panel-body">
+          <div class="seg" id="profiles"></div>
+          <p class="note">Power saver and Balanced lower clocks and boost when idle. Performance keeps the CPU ready to boost (what you have now). Same as the switch in GNOME's quick settings.</p>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">CPU power limits</span><span class="panel-sub" id="pwr-now"></span></div>
+        <div class="panel-body">
+          <div class="banner" id="pwr-banner" hidden></div>
+          <div class="field">
+            <div class="field-top"><label for="pl1">PL1, sustained</label><span class="val" id="pl1v"></span></div>
+            <input type="range" id="pl1" step="1">
+          </div>
+          <div class="field">
+            <div class="field-top"><label for="pl2">PL2, short bursts (~28 s)</label><span class="val" id="pl2v"></span></div>
+            <input type="range" id="pl2" step="1">
+          </div>
+          <p class="note" id="pwr-note"></p>
+        </div>
+        <div class="actions">
+          <button class="btn" id="pwr-reset">Back to BIOS limits</button>
+          <button class="btn primary" id="pwr-apply" disabled>Apply limits</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="foot">msictl · unofficial, not affiliated with MSI · lighting protocol from OpenRGB, fan driver nct6687d</div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const TOKEN = "__TOKEN__";
+const $ = id => document.getElementById(id);
+const h = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e[k] = v;
+    else if (k === "style") e.style.cssText = v;
+    else if (v === true) e.setAttribute(k, "");
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c);
+  return e;
+};
+function toast(msg, err) {
+  const t = $("toast"); t.textContent = msg; t.className = "toast show" + (err ? " err" : "");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.className = "toast" + (err ? " err" : ""), err ? 6000 : 2200);
+}
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? { headers: { "X-Token": TOKEN } } :
+    { method: "POST", headers: { "X-Token": TOKEN, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({ ok: false, error: `HTTP ${r.status}` }));
+  if (body !== undefined && j.ok === false) throw new Error(j.error || "failed");
+  return j;
+}
+const clone = o => JSON.parse(JSON.stringify(o));
+const fmt = (v, d = 0) => v == null ? "–" : Number(v).toFixed(d);
+
+let S = null;           // full state from server
+let L = null, L0 = null; // lighting draft / applied
+let F = null, F0 = null; // fan config draft / applied
+let fansFromDaemon = false;
+let LIVE = null;
+
+// ---------------------------------------------------------------- tabs
+document.querySelectorAll(".nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".nav button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll("[data-panel]").forEach(p => p.hidden = p.dataset.panel !== b.dataset.view);
+  try { localStorage.setItem("msictl-tab", b.dataset.view); } catch (e) {}
+});
+try { const t = localStorage.getItem("msictl-tab"); if (t) document.querySelector(`.nav [data-view="${t}"]`)?.click(); } catch (e) {}
+
+// ---------------------------------------------------------------- lighting
+const PRESET_COLOURS = ["#ff0000", "#ff6a00", "#ffd000", "#00ff40", "#00e5ff", "#0050ff", "#8a2be2", "#ff00c8", "#ffffff"];
+const effById = id => S.lighting.effects.find(e => e.id === id) || { id, name: `Effect ${id}`, color: "custom", speed: true };
+const isOff = z => z.effect === 1 && (z.color === "#000000" || z.brightness === 0);
+
+function renderLighting() {
+  const lg = S.lighting;
+  $("light-err").hidden = lg.ok;
+  if (!lg.ok) { $("light-err").textContent = "Mystic Light controller unavailable: " + lg.error; $("zones").replaceChildren(); return; }
+  const wrap = $("zones"); wrap.replaceChildren();
+  for (const [name, z] of Object.entries(L)) {
+    const info = lg.zone_info[name], eff = effById(z.effect);
+    const nLeds = info.kind === "argb" ? Math.max(1, Math.min(z.led_count || 8, 24)) : 1;
+    const leds = h("div", { class: "leds" }, Array.from({ length: nLeds }, (_, i) => h("span", { class: "led", style: `--i:${i}` })));
+    paintLeds(leds, z, eff);
+    const effects = h("div", { class: "effects" },
+      h("button", { class: "opt" + (isOff(z) ? " on" : ""), onclick: () => edit(name, { effect: 1, color: "#000000", rainbow: false }) }, "Off"),
+      lg.effects.map(e => h("button", { class: "opt" + (!isOff(z) && e.id === z.effect ? " on" : ""), title: e.color === "rainbow" ? "rainbow colours" : "",
+        onclick: () => edit(name, { effect: e.id, ...(isOff(z) ? { color: "#ffffff" } : {}) }) }, e.name)));
+    const canCustom = eff.color !== "rainbow", canRainbow = eff.color !== "custom";
+    const pick = h("input", { type: "color", class: "colorpick", value: z.color === "#000000" ? "#ffffff" : z.color, title: "Any colour", disabled: !canCustom });
+    pick.oninput = () => edit(name, { color: pick.value, color2: pick.value, rainbow: false });
+    const colours = h("div", { class: "swatches" },
+      PRESET_COLOURS.map(c => h("button", { class: "sw" + (!z.rainbow && z.color === c ? " on" : ""), style: `background:${c}`, title: c, disabled: !canCustom,
+        onclick: () => edit(name, { color: c, color2: c, rainbow: false }) })),
+      h("button", { class: "sw rainbow" + (z.rainbow ? " on" : ""), title: "Rainbow / random colours", disabled: !canRainbow, onclick: () => edit(name, { rainbow: true }) }),
+      pick);
+    const speed = h("div", { class: "seg" }, lg.speeds.map((s, i) =>
+      h("button", { "aria-pressed": z.speed === i, disabled: !eff.speed, onclick: () => edit(name, { speed: i }) }, s)));
+    const bright = h("input", { type: "range", min: 0, max: lg.brightness_max, value: z.brightness });
+    const bval = h("span", { class: "val" }, `${z.brightness * 10} %`);
+    bright.oninput = () => { bval.textContent = `${bright.value * 10} %`; };
+    bright.onchange = () => edit(name, { brightness: +bright.value });
+    let ledField = null;
+    if (info.kind === "argb") {
+      const n = h("input", { type: "number", min: 0, max: info.max_leds, value: z.led_count ?? 0 });
+      n.onchange = () => edit(name, { led_count: Math.max(0, Math.min(info.max_leds, Math.round(+n.value || 0))) });
+      ledField = h("div", { class: "field" }, h("div", { class: "field-top" }, h("label", {}, "LEDs on this header"), n),
+        (z.led_count === 0 ? h("div", { class: "note", style: "margin:0;color:var(--warn)" }, "0 LEDs: nothing on this header will light up.") : null));
+    }
+    wrap.append(h("div", { class: "panel" },
+      h("div", { class: "panel-head" }, h("span", { class: "panel-title" }, name), h("span", { class: "panel-sub" }, info.desc),
+        h("div", { class: "grow" }), h("span", { class: "panel-sub" }, isOff(z) ? "Off" : eff.name)),
+      h("div", { class: "panel-body" }, leds,
+        h("div", { class: "field" }, h("p", { class: "label-sm" }, "Effect"), effects),
+        h("div", { class: "field" }, h("p", { class: "label-sm" }, "Colour"), colours),
+        h("div", { class: "field" }, h("div", { class: "field-top" }, h("label", {}, "Speed")), speed),
+        h("div", { class: "field" }, h("div", { class: "field-top" }, h("label", {}, "Brightness"), bval), bright),
+        ledField)));
+  }
+  const dirty = JSON.stringify(L) !== JSON.stringify(L0);
+  $("light-revert").disabled = !dirty;
+  $("light-save").disabled = false;
+}
+
+function paintLeds(el, z, eff) {
+  const dur = [1.6, 1, 0.6][z.speed] || 1;
+  el.style.setProperty("--dur", (eff.id === 2 ? dur * 2.4 : eff.id === 1 ? 1 : dur * 2) + "s");
+  const rain = z.rainbow;
+  el.className = "leds" + (isOff(z) ? " off" : "") + (eff.id === 2 ? " breathe" : "") +
+    ([3, 4, 5, 19, 29, 35].includes(eff.id) ? " flash" : "") + (rain ? " rainbow" : "") + (rain && eff.id !== 3 ? " wave" : "");
+  el.querySelectorAll(".led").forEach((l, i) => {
+    const base = rain ? `hsl(${(i * 47) % 360} 90% 55%)` : z.color;
+    l.style.setProperty("--c", base);
+    l.style.opacity = z.brightness / 10 * 0.85 + 0.15;
+  });
+}
+
+function edit(name, patch) {
+  const targets = $("sync").checked ? Object.keys(L) : [name];
+  for (const n of targets) {
+    const z = L[n];
+    Object.assign(z, patch);
+    if (patch.led_count !== undefined && S.lighting.zone_info[n].kind !== "argb") z.led_count = null;
+    const e = effById(z.effect);
+    // An addressable header set to 0 LEDs drives nothing at all: give it a working count.
+    if (S.lighting.zone_info[n].kind === "argb" && !z.led_count && !isOff(z) && patch.led_count === undefined) {
+      z.led_count = 40;
+      toast(`${n} had 0 LEDs, so nothing would light up: set to 40 (change it below)`);
+    }
+    if (e.color === "rainbow") z.rainbow = true;
+    if (e.color === "custom") z.rainbow = false;
+  }
+  renderLighting();
+  if ($("live").checked) applyLighting(false, targets);
+}
+
+let lightBusy = Promise.resolve();
+function applyLighting(save, only) {
+  const zones = {};
+  for (const n of (only || Object.keys(L))) zones[n] = L[n];
+  lightBusy = lightBusy.then(async () => {
+    try {
+      const r = await api("/api/lighting", { zones, save });
+      for (const n of Object.keys(zones)) L0[n] = clone(L[n]);
+      if (save) { toast("Saved to the board"); }
+      renderLighting();
+    } catch (e) { toast(e.message, true); }
+  });
+  return lightBusy;
+}
+$("light-save").onclick = () => applyLighting(true);
+$("light-revert").onclick = () => { L = clone(L0); renderLighting(); applyLighting(false); };
+$("all-off").onclick = () => { for (const n of Object.keys(L)) Object.assign(L[n], { effect: 1, color: "#000000", rainbow: false }); renderLighting(); applyLighting(false); };
+
+// ---------------------------------------------------------------- fans
+const X0 = 20, X1 = 100, VW = 560, VH = 240, PADL = 34, PADB = 22, PADT = 10, PADR = 12;
+const sx = t => PADL + (t - X0) / (X1 - X0) * (VW - PADL - PADR);
+const sy = d => PADT + (1 - d / 100) * (VH - PADT - PADB);
+const tx = x => X0 + (x - PADL) / (VW - PADL - PADR) * (X1 - X0);
+const ty = y => (1 - (y - PADT) / (VH - PADT - PADB)) * 100;
+const NS = "http://www.w3.org/2000/svg";
+const s = (tag, attrs = {}) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+
+function interp(pts, t) {
+  if (t <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) if (t <= pts[i][0]) { const [a, b] = [pts[i - 1], pts[i]]; return a[1] + (b[1] - a[1]) * (t - a[0]) / (b[0] - a[0]); }
+  return pts[pts.length - 1][1];
+}
+
+function daemonOk() { return LIVE?.daemon?.ok; }
+
+function renderFans() {
+  const meta = S.fan_meta, d = LIVE.daemon, drv = LIVE.sensors.driver;
+  const ban = $("fan-banner");
+  if (!drv.writable) { ban.hidden = false; ban.innerHTML = "The fan driver <code>nct6687</code> isn't loaded, so fan speeds can only be read. See <code>RESEARCH.md</code>."; }
+  else if (!d.ok) { ban.hidden = false; ban.innerHTML = (d.missing ? "Fan control needs the small background service. Install it with <code>./install.sh</code> in the <code>motherboard</code> folder." : d.error) + " Showing live readings only."; }
+  else ban.hidden = true;
+  $("fan-note").textContent = `Safety: CPU_FAN1 never drops below ${meta.cpu_floor} % under software control; at ${meta.emergency} °C (CPU or GPU) every controlled fan goes to 100 %; if the service stops or crashes, the BIOS curve takes over again within 15 s.`;
+  const wrap = $("fanpanels"); wrap.replaceChildren();
+  if (!F) return;
+  for (const [fid, f] of Object.entries(F)) {
+    const live = LIVE.sensors.fans[fid], st = d.ok ? d.fan_status?.[fid] : null;
+    const srcTemp = sourceTemp(f.source);
+    const modeSeg = h("div", { class: "seg" }, [["bios", "BIOS"], ["fixed", "Fixed"], ["curve", "Curve"]].map(([m, lab]) =>
+      h("button", { "aria-pressed": f.mode === m, disabled: !d.ok, onclick: () => { f.mode = m; fanDirty(); } }, lab)));
+    const body = h("div", { class: "panel-body" },
+      h("div", { class: "fanstat" },
+        h("div", {}, h("div", { class: "lbl" }, "Speed"), h("div", { class: "big" }, fmt(live.rpm), h("small", {}, "RPM"))),
+        h("div", {}, h("div", { class: "lbl" }, "Duty"), h("div", { class: "big" }, fmt(live.duty), h("small", {}, "%"))),
+        h("div", {}, h("div", { class: "lbl" }, "Controlled by"), h("div", { style: "font-weight:600;margin-top:6px" }, live.mode === "manual" ? "msictl" : "BIOS"),
+          st?.why ? h("div", { class: "panel-sub" }, st.why) : null)),
+      h("div", { class: "field" }, h("p", { class: "label-sm" }, "Mode"), modeSeg));
+    if (f.mode === "fixed") {
+      const r = h("input", { type: "range", min: fid === "cpu" ? meta.cpu_floor : 0, max: 100, value: f.duty, disabled: !d.ok });
+      const v = h("span", { class: "val" }, `${f.duty} %`);
+      const warn = h("p", { class: "note", style: "color:var(--warn)" }, `Below ${meta.sys_stop} % the case fans stop spinning.`);
+      warn.hidden = !(fid === "sys" && f.duty < meta.sys_stop);
+      r.oninput = () => { f.duty = +r.value; v.textContent = `${r.value} %`; warn.hidden = !(fid === "sys" && f.duty < meta.sys_stop); fanDirty(false); };
+      body.append(h("div", { class: "field" }, h("div", { class: "field-top" }, h("label", {}, "Fixed speed"), v), r, warn));
+    } else if (f.mode === "curve") {
+      const presets = h("div", { class: "seg" }, Object.keys(meta.presets).map(p => {
+        const on = JSON.stringify(meta.presets[p][fid]) === JSON.stringify(f.points);
+        return h("button", { "aria-pressed": on, disabled: !d.ok, onclick: () => { f.points = clone(meta.presets[p][fid]); fanDirty(); } }, p[0].toUpperCase() + p.slice(1));
+      }));
+      const src = h("select", { disabled: !d.ok }, Object.entries(meta.sources).map(([k, lab]) => h("option", { value: k, selected: k === f.source }, lab)));
+      src.onchange = () => { f.source = src.value; fanDirty(); };
+      body.append(h("div", { class: "field row" }, presets, h("div", { class: "grow" }), h("span", { class: "lbl" }, "Follows"), src),
+        curveEditor(fid, f, srcTemp, live.duty, d.ok),
+        h("p", { class: "note" }, "Drag points to shape the curve. Double-click empty space to add a point, right-click a point to remove it."));
+    } else {
+      body.append(h("p", { class: "note" }, "The board's own fan curve (set in the BIOS) controls this fan. Nothing is changed."));
+    }
+    wrap.append(h("div", { class: "panel" },
+      h("div", { class: "panel-head" }, h("span", { class: "panel-title" }, live.label), h("span", { class: "panel-sub" }, fid === "cpu" ? "CPU cooler" : "Case fans (all fans on this header share one speed)")),
+      body));
+  }
+  $("fan-hint").textContent = d.ok ? "Changes take effect when you press Apply, and are kept across reboots." : "";
+}
+
+function sourceTemp(src) {
+  const t = LIVE.daemon.ok ? LIVE.daemon.temps : {};
+  if (src === "max") { const v = ["cpu", "gpu"].map(k => t[k]).filter(x => x != null); return v.length ? Math.max(...v) : null; }
+  return t[src] ?? (src === "cpu" ? LIVE.sensors.cpu_temp : src === "gpu" ? LIVE.sensors.gpu?.temp : null);
+}
+
+function curveEditor(fid, f, nowT, nowDuty, enabled) {
+  const svg = s("svg", { viewBox: `0 0 ${VW} ${VH}`, class: "curve" + (enabled ? "" : " disabled") });
+  const g = s("g", { class: "grid" }), ax = s("g", { class: "axis" });
+  for (let t = 20; t <= 100; t += 10) { g.append(s("line", { x1: sx(t), x2: sx(t), y1: sy(0), y2: sy(100) }));
+    const tt = s("text", { x: sx(t), y: VH - 6, "text-anchor": "middle" }); tt.textContent = t + "°"; ax.append(tt); }
+  for (let d = 0; d <= 100; d += 25) { g.append(s("line", { x1: sx(X0), x2: sx(X1), y1: sy(d), y2: sy(d) }));
+    const tt = s("text", { x: PADL - 6, y: sy(d) + 4, "text-anchor": "end" }); tt.textContent = d + "%"; ax.append(tt); }
+  svg.append(g, ax);
+  const area = s("path", { class: "area" }), line = s("path", { class: "line" });
+  svg.append(area, line);
+  const nowG = s("g");
+  svg.append(nowG);
+  const drawNow = () => {
+    nowG.replaceChildren();
+    if (nowT == null) return;
+    const x = sx(Math.max(X0, Math.min(X1, nowT)));
+    nowG.append(s("line", { class: "now", x1: x, x2: x, y1: sy(0), y2: sy(100) }));
+    const d = interp(f.points, nowT);
+    nowG.append(s("circle", { class: "nowdot", cx: x, cy: sy(Math.max(d, f.min_duty || 0)), r: 4 }));
+    const t = s("text", { class: "nowtxt", x: x + 6, y: PADT + 12 }); t.textContent = `${nowT.toFixed(0)} °C → ${Math.round(Math.max(d, f.min_duty || 0))} %`; nowG.append(t);
+  };
+  const ptsG = s("g"); svg.append(ptsG);
+  const draw = () => {
+    const p = f.points;
+    const dl = `M ${sx(X0)} ${sy(p[0][1])} ` + p.map(q => `L ${sx(q[0])} ${sy(q[1])}`).join(" ") + ` L ${sx(X1)} ${sy(p[p.length - 1][1])}`;
+    line.setAttribute("d", dl); area.setAttribute("d", dl + ` L ${sx(X1)} ${sy(0)} L ${sx(X0)} ${sy(0)} Z`);
+    ptsG.replaceChildren(...p.map((q, i) => {
+      const c = s("circle", { class: "pt", cx: sx(q[0]), cy: sy(q[1]), r: 7 });
+      const ttl = s("title"); ttl.textContent = `${q[0]} °C → ${q[1]} %`; c.append(ttl);
+      c.addEventListener("pointerdown", ev => startDrag(ev, i, c));
+      c.addEventListener("contextmenu", ev => { ev.preventDefault(); if (p.length > 2) { p.splice(i, 1); draw(); fanDirty(false); } });
+      return c;
+    }));
+    drawNow();
+  };
+  const toLocal = ev => { const r = svg.getBoundingClientRect(); return [(ev.clientX - r.left) * VW / r.width, (ev.clientY - r.top) * VH / r.height]; };
+  function startDrag(ev, i, c) {
+    ev.preventDefault(); c.setPointerCapture(ev.pointerId); c.classList.add("drag");
+    const move = e => {
+      const [x, y] = toLocal(e), p = f.points;
+      const lo = i > 0 ? p[i - 1][0] + 1 : 0, hi = i < p.length - 1 ? p[i + 1][0] - 1 : 105;
+      p[i] = [Math.round(Math.max(lo, Math.min(hi, tx(x)))), Math.round(Math.max(0, Math.min(100, ty(y))))];
+      draw(); fanDirty(false);
+    };
+    const up = () => { c.removeEventListener("pointermove", move); c.removeEventListener("pointerup", up); renderFans(); };
+    c.addEventListener("pointermove", move); c.addEventListener("pointerup", up);
+  }
+  svg.addEventListener("dblclick", ev => {
+    if (f.points.length >= S.fan_meta.max_points) return toast(`At most ${S.fan_meta.max_points} points`, true);
+    const [x, y] = toLocal(ev), t = Math.round(tx(x)), d = Math.round(Math.max(0, Math.min(100, ty(y))));
+    if (t < X0 || t > X1 || f.points.some(q => q[0] === t)) return;
+    f.points.push([t, d]); f.points.sort((a, b) => a[0] - b[0]); draw(); fanDirty(false);
+  });
+  draw();
+  return svg;
+}
+
+function fanDirty(rerender = true) {
+  const dirty = JSON.stringify(F) !== JSON.stringify(F0);
+  $("fan-apply").disabled = !dirty || !daemonOk(); $("fan-revert").disabled = !dirty;
+  if (rerender) renderFans();
+}
+$("fan-revert").onclick = () => { F = clone(F0); fanDirty(); };
+$("fan-apply").onclick = async () => {
+  try {
+    const r = await api("/api/fans", { fans: F });
+    F0 = clone(r.config.fans); F = clone(F0); fanDirty(); toast("Fan settings applied");
+  } catch (e) { toast(e.message, true); }
+};
+
+// ---------------------------------------------------------------- sensors
+function tempClass(v) { return v >= 85 ? "hot" : v >= 70 ? "warm" : ""; }
+function renderSensors() {
+  const sn = LIVE.sensors, out = $("sensor-groups"); out.replaceChildren();
+  const tile = (k, v, unit, d = 1, pct) => h("div", { class: "tile" }, h("div", { class: "k", title: k }, k),
+    h("div", { class: "v " + (unit === "°C" ? tempClass(v) : "") }, v == null ? "–" : `${Number(v).toFixed(d)} ${unit}`),
+    pct != null ? h("div", { class: "bar" }, h("i", { style: `width:${Math.max(0, Math.min(100, pct))}%` })) : null);
+  const groups = [];
+  groups.push({ name: "Overview", tiles: [
+    tile("CPU usage", sn.cpu_usage, "%", 0, sn.cpu_usage), tile("CPU package", sn.cpu_temp, "°C"),
+    tile("CPU power", LIVE.daemon.ok ? LIVE.daemon.power.watts : null, "W", 1),
+    ...(sn.gpu ? [tile("GPU temp", sn.gpu.temp, "°C", 0), tile("GPU power", sn.gpu.power_w, "W", 1), tile("GPU load", sn.gpu.util_pct, "%", 0, sn.gpu.util_pct), tile("GPU fan", sn.gpu.fan_pct, "%", 0, sn.gpu.fan_pct)] : []),
+    ...Object.values(sn.fans).map(f => tile(f.label, f.rpm, "RPM", 0, f.duty)),
+  ]});
+  for (const g of sn.groups) groups.push({ name: g.name, tiles: g.items.map(i => tile(i.label, i.value, g.kind === "volt" ? "V" : "°C", g.kind === "volt" ? 3 : 1)) });
+  const cores = sn.groups.find(g => g.cores)?.cores;
+  if (cores) groups.push({ name: "CPU cores", tiles: cores.map(c => tile(c.label, c.value, "°C", 0)) });
+  for (const g of groups) out.append(h("div", { class: "panel", style: "margin-bottom:16px" },
+    h("div", { class: "panel-head" }, h("span", { class: "panel-title" }, g.name)), h("div", { class: "panel-body" }, h("div", { class: "tiles" }, g.tiles))));
+  if (!LIVE.daemon.ok) out.append(h("p", { class: "note" }, "CPU power draw needs the fan/power service (root can read the energy counter)."));
+}
+
+// ---------------------------------------------------------------- power
+let P = null;
+function renderPower(first) {
+  const pw = LIVE.power, meta = S.fan_meta, d = LIVE.daemon;
+  const prof = pw.profile;
+  $("profiles").replaceChildren(...(prof.available ? prof.profiles : []).map(p =>
+    h("button", { "aria-pressed": prof.active === p, onclick: async () => {
+      try { await api("/api/power/profile", { profile: p }); toast(`Power profile: ${p}`); await refreshLive(); } catch (e) { toast(e.message, true); } } },
+      { "power-saver": "Power saver", balanced: "Balanced", performance: "Performance" }[p])));
+  if (!prof.available) $("profiles").replaceChildren(h("span", { class: "muted", style: "padding:4px 8px" }, "Power profiles service not available"));
+  const lim = pw.limits;
+  if (first || !P) P = { pl1: lim.pl1, pl2: lim.pl2 };
+  const [p1, p2] = [$("pl1"), $("pl2")];
+  Object.assign(p1, { min: meta.pl1_range[0], max: meta.pl1_range[1] }); Object.assign(p2, { min: meta.pl2_range[0], max: meta.pl2_range[1] });
+  p1.value = P.pl1; p2.value = P.pl2;
+  $("pl1v").textContent = `${P.pl1} W`; $("pl2v").textContent = `${P.pl2} W`;
+  p1.disabled = p2.disabled = !d.ok;
+  const base = d.ok ? d.power.baseline : null;
+  $("pwr-now").textContent = d.ok && d.power.watts != null ? `using ${d.power.watts} W now` : "";
+  const ban = $("pwr-banner");
+  ban.hidden = d.ok; ban.innerHTML = d.ok ? "" : "Changing power limits needs the background service (<code>./install.sh</code>). Current values are shown.";
+  $("pwr-note").textContent = `Your BIOS set PL1 ${base?.pl1 ?? lim.pl1} W / PL2 ${base?.pl2 ?? lim.pl2} W. Intel's spec for the i7-14700F is 65 W / 219 W. ` +
+    "Higher limits = more performance under long all-core loads, but more heat and noise; the CPU still protects itself at 100 °C. Limits go back to the BIOS values if the service is stopped.";
+  $("pwr-apply").disabled = !d.ok || (P.pl1 === lim.pl1 && P.pl2 === lim.pl2);
+  $("pwr-reset").disabled = !d.ok;
+}
+$("pl1").oninput = e => { P.pl1 = +e.target.value; if (P.pl2 < P.pl1) P.pl2 = P.pl1; renderPower(); };
+$("pl2").oninput = e => { P.pl2 = +e.target.value; if (P.pl1 > P.pl2) P.pl1 = P.pl2; renderPower(); };
+$("pwr-apply").onclick = async () => {
+  try { const r = await api("/api/power/limits", P); toast(`Limits now PL1 ${r.power.pl1} W / PL2 ${r.power.pl2} W`); await refreshLive(); renderPower(true); }
+  catch (e) { toast(e.message, true); }
+};
+$("pwr-reset").onclick = async () => {
+  try { await api("/api/power/limits", { reset: true }); toast("Back to BIOS limits"); await refreshLive(); renderPower(true); }
+  catch (e) { toast(e.message, true); }
+};
+
+// ---------------------------------------------------------------- header + polling
+function renderChips() {
+  const sn = LIVE.sensors, f = sn.fans;
+  const c = (k, v) => h("span", { class: "chip" }, k + " ", h("b", {}, v));
+  $("chips").replaceChildren(
+    c("CPU", `${fmt(sn.cpu_temp)}°C`), sn.gpu ? c("GPU", `${fmt(sn.gpu.temp)}°C`) : null,
+    c("CPU fan", `${fmt(f.cpu.rpm)} rpm`), c("Case", `${fmt(f.sys.rpm)} rpm`));
+  const ok = S.lighting.ok;
+  $("dot").className = "dot " + (ok && LIVE.daemon.ok ? "on" : "warn");
+  $("board").textContent = ok ? S.lighting.board : "MSI board";
+}
+
+async function refreshLive() {
+  LIVE = await api("/api/live");
+  renderChips();
+  const view = document.querySelector('.nav [aria-selected="true"]').dataset.view;
+  if (view === "sensors") renderSensors();
+  if (view === "fans" && !document.querySelector(".pt.drag")) {
+    // the service came up after the page loaded: take its config once (never overwrite edits)
+    if (LIVE.daemon.ok && !fansFromDaemon) { F0 = clone(LIVE.daemon.config.fans); F = clone(F0); fansFromDaemon = true; }
+    renderFans(); fanDirty(false);
+  }
+  if (view === "power") renderPower();
+}
+
+async function load() {
+  try {
+    S = await api("/api/state");
+  } catch (e) {
+    document.querySelector("main").replaceChildren(h("div", { class: "center" }, h("div", { class: "card" }, h("h2", {}, "msictl isn't responding"), h("pre", {}, String(e)))));
+    return;
+  }
+  LIVE = S.live;
+  if (S.lighting.ok) { L0 = clone(S.lighting.zones); for (const z of Object.values(L0)) delete z.effect_name; L = clone(L0); }
+  fansFromDaemon = !!LIVE.daemon.ok;
+  if (fansFromDaemon) F0 = clone(LIVE.daemon.config.fans);
+  else {  // read-only view until the service is installed
+    const pr = S.fan_meta.presets.balanced;
+    F0 = { cpu: { mode: "bios", duty: 50, source: "cpu", points: clone(pr.cpu), min_duty: S.fan_meta.cpu_floor },
+           sys: { mode: "bios", duty: 50, source: "max", points: clone(pr.sys), min_duty: 30 } };
+  }
+  F = clone(F0);
+  renderLighting(); renderChips(); renderFans(); fanDirty(false); renderSensors(); renderPower(true);
+  setInterval(() => refreshLive().catch(() => {}), 2000);
+}
+document.querySelectorAll(".nav button").forEach(b => b.addEventListener("click", () => refreshLive().catch(() => {})));
+load();
+</script>
+</body>
+</html>

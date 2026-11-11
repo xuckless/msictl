@@ -1,0 +1,6 @@
+__pycache__/
+*.egg-info/
+build/
+# third-party sources fetched for reference/building; see README for where they come from
+third_party/
+reference-*/

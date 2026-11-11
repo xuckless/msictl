@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "msictl"
+version = "0.1.0"
+description = "MSI motherboard RGB lighting, fan curves, sensors and CPU power on Linux"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "GPL-2.0-or-later"
+license-files = ["LICENSE"]
+dependencies = []
+
+[project.scripts]
+msictl = "msictl.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+msictl = ["static/*.html"]
